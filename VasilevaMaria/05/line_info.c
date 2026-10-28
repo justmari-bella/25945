@@ -5,8 +5,7 @@
 
 #define BLOCK_SIZE 4096   /* размер блока для чтения файла */
 
-/* Одна запись таблицы: где строка начинается и сколько в ней байт
-   (без учёта разделителя '\n') */
+/* Одна запись таблицы: где строка начинается и сколько в ней байт */
 typedef struct {
     long offset;          /* смещение начала строки от начала файла */
     int  length;          /* длина строки в байтах (без '\n')        */
@@ -36,60 +35,48 @@ static int table_add(LineTable *t, long offset, int length)
     return 0;
 }
 
-/* Первый проход: строим таблицу отступов и длин строк.
-   Читаем блоками, а абсолютную позицию блока узнаём через
-   lseek(fd, 0L, SEEK_CUR) — как советует задание. */
+/* Первый проход: строим таблицу смещений и длин строк */
 static int build_table(int fd, LineTable *t)
 {
-    char    buf[BLOCK_SIZE];
+    char buf[BLOCK_SIZE];
     ssize_t n;
-    long    line_start = 0;   /* первая строка начинается с нулевого отступа */
-    int     line_len = 0;     /* текущая длина строки (в символах до '\n')   */
+    long line_start = 0;
+    int line_len = 0;
 
     while ((n = read(fd, buf, sizeof buf)) > 0) {
-        /* lseek(..., SEEK_CUR) возвращает позицию ПОСЛЕ чтения,
-           поэтому начало блока = текущая позиция - n */
-        long base = (long)lseek(fd, 0L, SEEK_CUR) - (long)n;
-        size_t i;
-        if (base < 0)
-            return -1;                                /* ошибка позиционирования */
+        /* Позиция сразу после прочитанного блока */
+        long current_pos = (long)lseek(fd, 0L, SEEK_CUR);
 
-        for (i = 0; i < (size_t)n; i++) {
-            if (buf[i] == '\n') {                     /* конец строки найден */
+        if (current_pos == -1)
+            return -1;
 
-                /* ============================================================
-                   ИСПРАВЛЕНИЕ №1 (главное):
-                   Пропускаем пустые строки — добавляем запись в таблицу
-                   ТОЛЬКО если line_len > 0.
-                   
-                   БЫЛО:
-                       if (table_add(t, line_start, line_len) != 0)
-                           return -1;
-                   
-                   СТАЛО:
-                       if (line_len > 0) {
-                           if (table_add(t, line_start, line_len) != 0)
-                               return -1;
-                       }
-                
-                   ============================================================ */
-                if (line_len > 0) {                   // ← ДОБАВЛЕНО условие фильтрации
-                    if (table_add(t, line_start, line_len) != 0)
-                        return -1;
-                }
+        /* Начало текущего блока */
+        long base = current_pos - n;
 
-                line_start = base + (long)i + 1;      /* следующая строка начинается после '\n' */
-                line_len = 0;                         /* сбрасываем счётчик длины */
+        for (size_t i = 0; i < (size_t)n; i++) {
+            if (buf[i] == '\n') {
+                /* Сохраняем найденную строку, включая пустую */
+                if (table_add(t, line_start, line_len) != 0)
+                    return -1;
+
+                /* Начало следующей строки */
+                line_start = base + (long)i + 1;
+                line_len = 0;
             } else {
-                line_len++;                           /* считаем символы текущей строки */
+                line_len++;
             }
+        }
     }
 
-    if (n < 0)                                        /* ошибка чтения */
+    /* Проверяем ошибку чтения */
+    if (n < 0)
         return -1;
 
-    if (line_len > 0 && table_add(t, line_start, line_len) != 0)
-        return -1;
+    /* Добавляем последнюю строку, если файл не заканчивается на '\n' */
+    if (line_len > 0) {
+        if (table_add(t, line_start, line_len) != 0)
+            return -1;
+    }
 
     return 0;
 }
@@ -153,7 +140,7 @@ int main(int argc, char *argv[])
     if (build_table(fd, &table) != 0) {               /* первый проход: строим таблицу */
         perror("build_table");
         close(fd);
-        free(table.items);                            /* освобожаем частично выделенную память */
+        free(table.items);                            /* освобождаем частично выделенную память */
         return EXIT_FAILURE;
     }
 

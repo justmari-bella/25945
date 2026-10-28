@@ -4,6 +4,7 @@
 #include <sys/resource.h>
 #include <limits.h>
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 
 extern char **environ;
@@ -15,7 +16,7 @@ typedef struct {
 } Option;
 
 int main(int argc, char *argv[]) {
-    char *optstring = "ispuU:cC:dvV:";
+    char *optstring = "isptuU:cC:dvV:";
     int c;
     
     Option options[256];   /* массив для хранения опций */
@@ -72,6 +73,41 @@ int main(int argc, char *argv[]) {
             case 'p': {
                 printf("PID = %d, PPID = %d, PGID = %d\n",
                        getpid(), getppid(), getpgrp());
+                break;
+            }
+
+            /* ----- -t : текущее время в часовом поясе Калифорнии ----- */
+            case 't': {
+                time_t now;
+                struct tm *sp;
+
+                /* Устанавливаем часовой пояс Калифорнии */
+                if (setenv("TZ", "America/Los_Angeles", 1) == -1) {
+                    perror("setenv");
+                    break;
+                }
+                tzset();
+
+                /* Получаем текущее время и преобразуем его в местное */
+                if (time(&now) == (time_t)-1) {
+                    perror("time");
+                    break;
+                }
+
+                sp = localtime(&now);
+                if (sp == NULL) {
+                    perror("localtime");
+                    break;
+                }
+
+                /* Выводим дату, время и обозначение часового пояса */
+                printf("%02d/%02d/%04d %02d:%02d %s\\n",
+                       sp->tm_mon + 1,
+                       sp->tm_mday,
+                       sp->tm_year + 1900,
+                       sp->tm_hour,
+                       sp->tm_min,
+                       tzname[sp->tm_isdst]);
                 break;
             }
             

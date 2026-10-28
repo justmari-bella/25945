@@ -13,7 +13,7 @@
 /* Глобальные данные */
 static int g_fd = -1;
 static volatile sig_atomic_t g_timeout_triggered = 0;
-static struct timeval g_start_time; /* ИСПРАВЛЕНИЕ: время начала чтения */
+static struct timeval g_start_time; /* время начала чтения */
 
 /* ---------- таблица строк ---------- */
 typedef struct {
@@ -22,12 +22,12 @@ typedef struct {
 } LineInfo;
 
 typedef struct {
-    LineInfo *items;
-    size_t    count;
-    size_t    capacity;
+    LineInfo *items; // указатель на динамический массив записей
+    size_t    count; // сколько строк уже
+    size_t    capacity; // сколько помещается в память
 } LineTable;
 
-static int table_add(LineTable *t, long offset, int length)
+static int table_add(LineTable *t, long offset, int length) // одну строку в таблицу
 {
     if (t->count == t->capacity) {
         size_t new_cap = (t->capacity == 0) ? 16 : t->capacity * 2;
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    // ИСПРАВЛЕНИЕ: Запоминаем время начала чтения в глобальную переменную
+    //  Запоминаем время начала чтения в глобальную переменную
     gettimeofday(&g_start_time, NULL);
 
     if (build_table(g_fd, &table) != 0) {
